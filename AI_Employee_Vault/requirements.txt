@@ -1,0 +1,20 @@
+# AI Employee - Python Dependencies
+# Bronze Tier Requirements
+
+# Core dependencies (required)
+watchdog>=3.0.0          # File system monitoring
+
+# Gmail integration (optional - for Gmail Watcher)
+google-api-python-client>=2.100.0
+google-auth-httplib2>=0.1.0
+google-auth-oauthlib>=1.0.0
+
+# WhatsApp integration (optional - for WhatsApp Watcher)
+# Requires Playwright browser automation
+# playwright>=1.40.0
+
+# Utilities
+python-dotenv>=1.0.0     # Environment variable management
+
+# Development
+pytest>=7.0.0            # Testing (optional)
