@@ -1,0 +1,46 @@
+version: '3.1'
+
+services:
+  # Odoo Community Edition 16 (latest stable with good API support)
+  odoo:
+    image: odoo:16.0
+    container_name: ai-employee-odoo
+    depends_on:
+      - postgres
+    ports:
+      - "8069:8069"
+    volumes:
+      - ./data/odoo-data:/var/lib/odoo
+      - ./config:/etc/odoo
+      - ./addons:/mnt/extra-addons
+    environment:
+      - ODOO_ADMIN_PASS=admin_password_change_me
+      - ODOO_DB_HOST=postgres
+      - ODOO_DB_USER=odoo
+      - ODOO_DB_PASSWORD=odoo_password_change_me
+      - ODOO_DB_NAME=odoo_db
+    restart: unless-stopped
+    networks:
+      - odoo-network
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15
+    container_name: ai-employee-odoo-db
+    environment:
+      - POSTGRES_USER=odoo
+      - POSTGRES_PASSWORD=odoo_password_change_me
+      - POSTGRES_DB=postgres
+    volumes:
+      - ./data/postgresql:/var/lib/postgresql/data
+    restart: unless-stopped
+    networks:
+      - odoo-network
+
+networks:
+  odoo-network:
+    driver: bridge
+
+volumes:
+  odoo-data:
+  postgresql:

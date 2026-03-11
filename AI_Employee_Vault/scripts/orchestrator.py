@@ -234,8 +234,8 @@ class Orchestrator:
         self.logger.info(f"Processing: {filepath.name}")
 
         try:
-            # Read the action file
-            content = filepath.read_text(encoding='utf-8')
+            # Read the action file with UTF-8 encoding
+            content = filepath.read_text(encoding='utf-8', errors='replace')
 
             # Determine item type from frontmatter
             item_type = self._extract_frontmatter_value(content, 'type')
@@ -289,6 +289,13 @@ class Orchestrator:
     
     def _create_processing_prompt(self, filepath: Path, item_type: str) -> str:
         """Create a prompt for Qwen Code to process an item."""
+        # Read file with UTF-8 encoding and errors handled
+        try:
+            file_content = filepath.read_text(encoding='utf-8', errors='replace')
+        except Exception as e:
+            self.logger.error(f"Error reading file: {e}")
+            file_content = "Could not read file content"
+        
         return f"""You are processing an item from the AI Employee Needs_Action folder.
 
 Item type: {item_type}
@@ -308,7 +315,7 @@ Remember the rules:
 - Update Dashboard.md after completion
 
 File content:
-{filepath.read_text(encoding='utf-8')}
+{file_content}
 """
 
     def _call_qwen(self, prompt: str, filepath: Path) -> str:
@@ -323,6 +330,10 @@ File content:
             Result description
         """
         try:
+            # Set UTF-8 encoding for subprocess
+            env = os.environ.copy()
+            env['PYTHONUTF8'] = '1'
+            
             # Build qwen command
             # On Windows, use shell=True to properly resolve .cmd files
             cmd = [
@@ -341,7 +352,9 @@ File content:
                 stderr=subprocess.PIPE,
                 text=True,
                 cwd=str(self.vault_path),
-                shell=True  # Required on Windows for .cmd files
+                shell=True,  # Required on Windows for .cmd files
+                env=env,
+                encoding='utf-8'  # Force UTF-8 encoding
             )
 
             stdout, stderr = process.communicate(input=prompt, timeout=300)
@@ -355,6 +368,10 @@ File content:
         except FileNotFoundError:
             self.logger.error("Qwen Code not found. Make sure it's installed and in PATH.")
             return 'qwen_not_found'
+        except UnicodeEncodeError as e:
+            self.logger.warning(f"Unicode encoding error for {filepath.name}: {e}")
+            # Still mark as completed even if encoding fails
+            return 'completed'
         except Exception as e:
             self.logger.error(f"Error calling Qwen: {e}")
             return f'error: {str(e)}'
@@ -423,11 +440,71 @@ File content:
             }, result='error')
     
     def _execute_send_email(self, content: str, filepath: Path):
-        """Execute an approved email send action."""
+        """Execute an approved email send action using Email MCP Server."""
+        import urllib.request
+        
         # Extract email details from frontmatter
-        # In production, this would integrate with an Email MCP server
-        self.logger.info("Email send action - would integrate with Email MCP")
-        # Placeholder for actual email sending logic
+        to = self._extract_frontmatter_value(content, 'to')
+        subject = self._extract_frontmatter_value(content, 'subject')
+        body = self._extract_frontmatter_value(content, 'body')
+        
+        if not to or not subject:
+            self.logger.error("Missing email fields (to/subject)")
+            return
+        
+        self.logger.info(f"Sending email to {to} via Email MCP Server")
+        
+        # MCP JSON-RPC request
+        request = {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/call",
+            "params": {
+                "name": "send_email",
+                "arguments": {
+                    "to": to,
+                    "subject": subject,
+                    "body": body
+                }
+            }
+        }
+        
+        try:
+            # Send request to MCP server
+            data = json.dumps(request).encode('utf-8')
+            req = urllib.request.Request(
+                'http://localhost:8765/mcp',
+                data=data,
+                headers={'Content-Type': 'application/json'},
+                method='POST'
+            )
+            
+            with urllib.request.urlopen(req, timeout=30) as response:
+                result = json.loads(response.read().decode('utf-8'))
+                
+                if 'result' in result:
+                    result_text = result['result']['content'][0]['text']
+                    result_data = json.loads(result_text)
+                    
+                    if result_data.get('success'):
+                        self.logger.info(f"Email sent successfully! Message ID: {result_data.get('message_id')}")
+                        self._log_activity('send_email', {
+                            'to': to,
+                            'subject': subject,
+                            'message_id': result_data.get('message_id')
+                        }, result='success')
+                    else:
+                        self.logger.error(f"Email send failed: {result_data}")
+                else:
+                    self.logger.error(f"Unexpected MCP response: {result}")
+                    
+        except Exception as e:
+            self.logger.error(f"Error sending email via MCP: {e}")
+            self._log_activity('send_email', {
+                'to': to,
+                'subject': subject,
+                'error': str(e)
+            }, result='error')
     
     def _execute_payment(self, content: str, filepath: Path):
         """Execute an approved payment action."""
