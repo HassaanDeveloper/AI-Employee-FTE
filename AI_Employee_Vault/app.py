@@ -147,8 +147,8 @@ def get_tier_info():
     **Full Version:** Runs 24/7 on your local PC (FREE!)
     """
 
-# Create Gradio Interface
-with gr.Blocks(title="AI Employee FTE", theme=gr.themes.Soft()) as demo:
+# Create Gradio Interface (Gradio 6.0 compatible)
+with gr.Blocks(title="AI Employee FTE") as demo:
     gr.Markdown("""
     # 🤖 AI Employee FTE
     
@@ -223,11 +223,6 @@ with gr.Blocks(title="AI Employee FTE", theme=gr.themes.Soft()) as demo:
     **Built with ❤️ using Gradio + Python + Qwen Code**
     """)
 
-# Load initial data
-demo.load(get_vault_status, outputs=status_output)
-demo.load(get_recent_activity, outputs=activity_output)
-demo.load(get_tier_info, outputs=tier_output)
-
 if __name__ == "__main__":
     # Get host and port from Replit environment
     host = os.environ.get('REPL_HOST', '0.0.0.0')
@@ -235,6 +230,7 @@ if __name__ == "__main__":
     
     print("🚀 Starting AI Employee FTE Dashboard...")
     print(f"📊 Dashboard URL: https://{host}:{port}")
-    print("🌐 Share this URL with the world!")
+    print("🌐 Dashboard is running!")
     
+    # Gradio 6.0 compatible launch
     demo.launch(server_name=host, server_port=port)
